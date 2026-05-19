@@ -15,7 +15,7 @@ const TIMELIST = [
 ];
 
 const CT_DATE = new Date('2027/01/16 09:30:00');
-const HT_DATE = new Date('2026/02/25 09:00:00');
+const HT_DATE = new Date('2027/02/24 09:00:00');
 
 function init() {
   // jQuery click -> addEventListener
