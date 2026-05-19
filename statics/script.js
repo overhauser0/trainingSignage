@@ -18,14 +18,13 @@ const CT_DATE = new Date('2027/01/16 09:30:00');
 const HT_DATE = new Date('2027/02/24 09:00:00');
 
 function init() {
-  // jQuery click -> addEventListener
   document.querySelector('.netzyouicon').addEventListener('click', () => {
     window.location.reload();
   });
 
   renderList();
   updateThemeColors();
-  refreshTime(); // 初回実行
+  refreshTime();
 
   setInterval(refreshTime, 1000);
   setInterval(updateThemeColors, 60000);
@@ -52,23 +51,7 @@ function refreshTime() {
     ':' +
     now.getMinutes().toString().padStart(2, '0');
 
-  // 日付・曜日取得
-  const month = now.getMonth() + 1;
-  const date = now.getDate();
-  const dayEn = now.toLocaleDateString('en-US', { weekday: 'short' }); // Sun, Mon...
-
-  // DOM更新
-  document.querySelector('.today_month').innerText = month;
-  document.querySelector('.today_date').innerText = date;
-  const dayEl = document.querySelector('.today_day');
-  dayEl.innerText = dayEn;
-
-  // 曜日スタイル変更
-  dayEl.classList.remove('lazred', 'lazuli');
-  if (dayEn === 'Sun') dayEl.classList.add('lazred');
-  if (dayEn === 'Sat') dayEl.classList.add('lazuli');
-
-  document.querySelector('.time_inner').innerText = currentTime;
+  updateDateTime(now);
 
   // 時間割のハイライトと残り時間計算
   let currentRestTime = 0;
@@ -103,6 +86,26 @@ function renderList() {
     tlTable.appendChild(itemEl);
   });
   container.appendChild(tlTable);
+}
+
+function updateDateTime(now) {
+  // 日付・曜日取得
+  const month = now.getMonth() + 1;
+  const date = now.getDate();
+  const dayEn = now.toLocaleDateString('en-US', { weekday: 'short' }); // Sun, Mon...
+
+  // DOM更新
+  document.querySelector('.today_month').innerText = month;
+  document.querySelector('.today_date').innerText = date;
+  const dayEl = document.querySelector('.today_day');
+  dayEl.innerText = dayEn;
+
+  // 曜日スタイル変更
+  dayEl.classList.remove('lazred', 'lazuli');
+  if (dayEn === 'Sun') dayEl.classList.add('lazred');
+  if (dayEn === 'Sat') dayEl.classList.add('lazuli');
+
+  document.querySelector('.time_inner').innerText = currentTime;
 }
 
 function updateCountdown(selector, targetDate) {
