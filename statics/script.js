@@ -88,6 +88,26 @@ function renderList() {
   container.appendChild(tlTable);
 }
 
+function updateDateTime(now) {
+  // 日付・曜日取得
+  const month = now.getMonth() + 1;
+  const date = now.getDate();
+  const dayEn = now.toLocaleDateString('en-US', { weekday: 'short' }); // Sun, Mon...
+
+  // DOM更新
+  document.querySelector('.today_month').innerText = month;
+  document.querySelector('.today_date').innerText = date;
+  const dayEl = document.querySelector('.today_day');
+  dayEl.innerText = dayEn;
+
+  // 曜日スタイル変更
+  dayEl.classList.remove('lazred', 'lazuli');
+  if (dayEn === 'Sun') dayEl.classList.add('lazred');
+  if (dayEn === 'Sat') dayEl.classList.add('lazuli');
+
+  document.querySelector('.time_inner').innerText = currentTime;
+}
+
 function updateCountdown(selector, targetDate) {
   const el = document.querySelector(selector);
   const diffTime = targetDate - new Date();
