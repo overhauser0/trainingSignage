@@ -51,7 +51,7 @@ function refreshTime() {
     ':' +
     now.getMinutes().toString().padStart(2, '0');
 
-  updateDateTime(now);
+  updateDateTime(now, currentTime);
 
   // 時間割のハイライトと残り時間計算
   let currentRestTime = 0;
@@ -88,7 +88,7 @@ function renderList() {
   container.appendChild(tlTable);
 }
 
-function updateDateTime(now) {
+function updateDateTime(now, currentTime) {
   // 日付・曜日取得
   const month = now.getMonth() + 1;
   const date = now.getDate();
