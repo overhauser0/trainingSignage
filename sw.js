@@ -1,4 +1,4 @@
-const VERSION = '0.0.12'; // 毎回更新
+const VERSION = '0.0.13'; // 毎回更新
 const STATIC_CACHE_KEY = 'static-' + VERSION;
 
 // キャッシュするファイルのリスト
