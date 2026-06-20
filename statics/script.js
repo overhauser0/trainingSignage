@@ -18,8 +18,8 @@ const CT_DATE = new Date('2027/01/16 09:30:00');
 const HT_DATE = new Date('2027/02/24 09:00:00');
 
 function init() {
-  document.querySelector('.netzyouicon').addEventListener('click', () => {
-    window.location.reload();
+  document.querySelector('.netzyouicon').addEventListener('click', async () => {
+    await requestWakeLock();
   });
 
   renderList();
@@ -187,16 +187,35 @@ let wakeLock = null;
 async function requestWakeLock() {
   try {
     if ('wakeLock' in navigator) {
+      // すでにアクティブな場合は重複して取得しない
+      if (wakeLock !== null) return;
+
       wakeLock = await navigator.wakeLock.request('screen');
       console.log('Wake Lock is active!');
+      updateWakeLockIndicator(true); // インジケーターを緑に
 
-      // 切断された場合に再取得する設定
+      // バックグラウンド移行などで切断された場合の処理
       wakeLock.addEventListener('release', () => {
         console.log('Wake Lock was released');
+        wakeLock = null; // 解放されたらnullに戻す
+        updateWakeLockIndicator(false); // インジケーターをグレーに
       });
     }
   } catch (err) {
     console.error(`${err.name}, ${err.message}`);
+    updateWakeLockIndicator(false);
+  }
+}
+
+// インジケーターの表示を切り替える関数
+function updateWakeLockIndicator(isActive) {
+  const indicator = document.getElementById('wakeLockIndicator');
+  if (!indicator) return;
+
+  if (isActive) {
+    indicator.classList.add('active');
+  } else {
+    indicator.classList.remove('active');
   }
 }
 
