@@ -231,13 +231,6 @@ body {
     opacity: 0.05;
   }
 }
-.time_icon {
-  position: absolute;
-  top: 10px;
-  left: 15px;
-  font-size: 2rem;
-  opacity: 0.7;
-}
 
 .today_wrap {
   font-size: var(--font-md);
@@ -255,11 +248,6 @@ body {
   & span.today_date {
     font-size: var(--font-lg);
     font-weight: bold;
-  }
-
-  & span.today_icon {
-    align-self: center;
-    flex-shrink: 0;
   }
 }
 
@@ -321,12 +309,6 @@ body {
     padding: 0.1rem 0;
     border-radius: 5px;
   }
-}
-
-.colorpencil_old {
-  box-shadow:
-    0px -6px 5px -5px #ffff00 inset,
-    0px 8px 4px -8px #ffff00;
 }
 
 .colorpencil * {
