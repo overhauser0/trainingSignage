@@ -14,30 +14,47 @@ const TIMELIST = [
   { fig: '⑬', start: '21:05', end: '21:50' },
 ];
 
-const CT_DATE = new Date('2027/01/16 09:30:00');
-const HT_DATE = new Date('2027/02/24 09:00:00');
+const SETTINGS_URL = '/api/settings';
+let countdownEvents = [];
+let wakeLock = null;
+let signageActive = false;
+let mascotPressTimer = null;
+let settingsPassword = '';
 
 function init() {
-  document.querySelector('.netzyouicon').addEventListener('click', async () => {
-    await requestWakeLock();
+  document
+    .getElementById('startSignage')
+    .addEventListener('click', startSignage);
+  const mascot = document.querySelector('.netzyouicon');
+  mascot.addEventListener('pointerdown', startMascotPressTimer);
+  mascot.addEventListener('pointerup', clearMascotPressTimer);
+  mascot.addEventListener('pointercancel', clearMascotPressTimer);
+  mascot.addEventListener('pointerleave', clearMascotPressTimer);
+  mascot.addEventListener('dblclick', (event) => {
+    event.preventDefault();
+    returnToHome();
   });
-
+  mascot.addEventListener('contextmenu', (event) => event.preventDefault());
+  document.getElementById('openSettings').addEventListener('click', openSettings);
+  document
+    .getElementById('settingsAuthForm')
+    .addEventListener('submit', authorizeSettings);
+  document
+    .getElementById('cancelSettingsAuth')
+    .addEventListener('click', closeSettingsAuth);
+  document
+    .getElementById('closeSettings')
+    .addEventListener('click', closeSettings);
+  document
+    .getElementById('settingsForm')
+    .addEventListener('submit', saveSettings);
   renderList();
   updateThemeColors();
   refreshTime();
+  loadSettings();
 
   setInterval(refreshTime, 1000);
   setInterval(updateThemeColors, 60000);
-
-  // 画面タッチ時や起動時にスリープ防止をリクエスト
-  requestWakeLock();
-
-  // タブが切り替わって戻ってきた時などに再取得
-  document.addEventListener('visibilitychange', async () => {
-    if (wakeLock !== null && document.visibilityState === 'visible') {
-      await requestWakeLock();
-    }
-  });
 
   registSW();
 }
@@ -68,9 +85,202 @@ function refreshTime() {
     }
   });
 
-  updateCountdown('#rest_CT', CT_DATE);
-  updateCountdown('#rest_HT', HT_DATE);
+  updateCountdowns();
   updateBalloonComment(currentRestTime);
+}
+
+function renderCountdowns() {
+  const container = document.querySelector('.body_note');
+  container.replaceChildren();
+
+  countdownEvents.forEach(({ name, dateTime }, index) => {
+    const targetDate = new Date(dateTime);
+    const item = document.createElement('div');
+    item.className = 'countdown_item';
+    item.id = `countdown-item-${index}`;
+
+    const labelEl = document.createElement('span');
+    labelEl.className = 'countdown_label';
+    labelEl.innerText = name;
+
+    const valueEl = document.createElement('span');
+    valueEl.className = 'countdown_value';
+
+    const numberEl = document.createElement('span');
+    numberEl.className = 'countdown_number';
+    numberEl.id = `countdown-${index}`;
+
+    const unitEl = document.createElement('span');
+    unitEl.className = 'countdown_unit';
+    unitEl.innerText = '日';
+
+    valueEl.append(numberEl, unitEl);
+    item.append(labelEl, valueEl);
+    container.appendChild(item);
+  });
+
+  updateCountdowns();
+}
+
+async function loadSettings() {
+  const status = document.getElementById('homeStatus');
+
+  try {
+    const response = await fetch(SETTINGS_URL, { cache: 'no-store' });
+    if (!response.ok) throw new Error(`設定の読み込みに失敗しました (${response.status})`);
+    const data = await response.json();
+    countdownEvents = normalizeEvents(data.events);
+    renderCountdowns();
+    populateSettingsForm();
+    setStatus(status, '設定を読み込みました。', false);
+  } catch (error) {
+    console.error('Settings load failed:', error);
+    setStatus(status, '設定を読み込めません。Netlifyへの接続を確認してください。', true);
+  }
+}
+
+function normalizeEvents(events) {
+  if (!Array.isArray(events)) return [];
+
+  return events
+    .slice(0, 3)
+    .filter(
+      (event) =>
+        event &&
+        typeof event.name === 'string' &&
+        typeof event.dateTime === 'string' &&
+        event.name.trim() &&
+        !Number.isNaN(new Date(event.dateTime).getTime()),
+    )
+    .map((event) => ({ name: event.name.trim(), dateTime: event.dateTime }));
+}
+
+function populateSettingsForm() {
+  for (let index = 0; index < 3; index += 1) {
+    const event = countdownEvents[index];
+    document.getElementById(`eventName${index + 1}`).value = event?.name ?? '';
+    document.getElementById(`eventDate${index + 1}`).value =
+      event?.dateTime ?? '';
+  }
+}
+
+async function openSettings() {
+  closeSettingsAuth();
+  document.getElementById('settingsAuthPanel').classList.remove('hidden');
+  document.getElementById('settingsAuthPassword').focus();
+}
+
+async function authorizeSettings(event) {
+  event.preventDefault();
+  const passwordInput = document.getElementById('settingsAuthPassword');
+  const status = document.getElementById('settingsAuthStatus');
+  const submitButton = document.querySelector(
+    '#settingsAuthForm button[type="submit"]',
+  );
+  const password = passwordInput.value;
+  submitButton.disabled = true;
+  setStatus(status, 'パスワードを確認しています…', false);
+
+  try {
+    const response = await fetch(SETTINGS_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${password}` },
+    });
+
+    if (response.status === 401) {
+      setStatus(status, 'パスワードが正しくありません。', true);
+      return;
+    }
+    if (!response.ok) {
+      throw new Error(`パスワードの確認に失敗しました (${response.status})`);
+    }
+
+    settingsPassword = password;
+    passwordInput.value = '';
+    document.getElementById('settingsAuthPanel').classList.add('hidden');
+    populateSettingsForm();
+    document.getElementById('settingsStatus').innerText = '';
+    document.getElementById('settingsPanel').classList.remove('hidden');
+    document.getElementById('eventName1').focus();
+  } catch (error) {
+    console.error('Settings authorization failed:', error);
+    setStatus(
+      status,
+      error.message || 'パスワードを確認できませんでした。',
+      true,
+    );
+  } finally {
+    submitButton.disabled = false;
+  }
+}
+
+function closeSettingsAuth() {
+  document.getElementById('settingsAuthPanel').classList.add('hidden');
+  document.getElementById('settingsAuthPassword').value = '';
+  document.getElementById('settingsAuthStatus').innerText = '';
+}
+
+function closeSettings() {
+  document.getElementById('settingsPanel').classList.add('hidden');
+  settingsPassword = '';
+}
+
+async function saveSettings(event) {
+  event.preventDefault();
+  const status = document.getElementById('settingsStatus');
+  const events = [];
+
+  for (let index = 1; index <= 3; index += 1) {
+    const name = document.getElementById(`eventName${index}`).value.trim();
+    const dateTime = document.getElementById(`eventDate${index}`).value;
+
+    if (!name && !dateTime) continue;
+    if (!name || !dateTime) {
+      setStatus(status, `テスト${index}の名前と日程を両方入力してください。`, true);
+      return;
+    }
+    events.push({ name, dateTime });
+  }
+
+  const password = settingsPassword;
+  const saveButton = document.querySelector('#settingsForm button[type="submit"]');
+  saveButton.disabled = true;
+  setStatus(status, '保存しています…', false);
+
+  try {
+    const response = await fetch(SETTINGS_URL, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${password}`,
+      },
+      body: JSON.stringify({ events }),
+    });
+
+    if (response.status === 401) {
+      throw new Error('管理用パスワードが正しくありません。');
+    }
+    if (!response.ok) {
+      const result = await response.json().catch(() => ({}));
+      throw new Error(result.error || `保存に失敗しました (${response.status})`);
+    }
+
+    const result = await response.json();
+    countdownEvents = normalizeEvents(result.events);
+    renderCountdowns();
+    closeSettings();
+    setStatus(document.getElementById('homeStatus'), '設定を保存しました。', false);
+  } catch (error) {
+    console.error('Settings save failed:', error);
+    setStatus(status, error.message || '設定を保存できませんでした。', true);
+  } finally {
+    saveButton.disabled = false;
+  }
+}
+
+function setStatus(element, message, isError) {
+  element.innerText = message;
+  element.classList.toggle('error', isError);
 }
 
 function renderList() {
@@ -108,16 +318,19 @@ function updateDateTime(now, currentTime) {
   document.querySelector('.time_inner').innerText = currentTime;
 }
 
-function updateCountdown(selector, targetDate) {
-  const el = document.querySelector(selector);
-  const diffTime = targetDate - new Date();
-  const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+function updateCountdowns() {
+  const now = new Date();
 
-  if (diffDays <= 0) {
-    el.classList.add('unshown');
-  } else {
-    el.innerText = `${diffDays}日`;
-  }
+  countdownEvents.forEach(({ dateTime }, index) => {
+    const targetDate = new Date(dateTime);
+    const diffDays = Math.floor((targetDate - now) / (1000 * 60 * 60 * 24));
+    const item = document.getElementById(`countdown-item-${index}`);
+    const number = document.getElementById(`countdown-${index}`);
+    if (!item || !number) return;
+
+    item.classList.toggle('unshown', diffDays <= 0);
+    number.innerText = Math.max(diffDays, 0);
+  });
 }
 
 function updateBalloonComment(resttime) {
@@ -181,42 +394,85 @@ function registSW() {
   }
 }
 
-// 画面スリープを防止する関数
-let wakeLock = null;
+async function startSignage() {
+  const startButton = document.getElementById('startSignage');
+  const status = document.getElementById('homeStatus');
+  startButton.disabled = true;
 
-async function requestWakeLock() {
   try {
-    if ('wakeLock' in navigator) {
-      // すでにアクティブな場合は重複して取得しない
-      if (wakeLock !== null) return;
-
-      wakeLock = await navigator.wakeLock.request('screen');
-      console.log('Wake Lock is active!');
-      updateWakeLockIndicator(true); // インジケーターを緑に
-
-      // バックグラウンド移行などで切断された場合の処理
-      wakeLock.addEventListener('release', () => {
-        console.log('Wake Lock was released');
-        wakeLock = null; // 解放されたらnullに戻す
-        updateWakeLockIndicator(false); // インジケーターをグレーに
-      });
+    if (!('wakeLock' in navigator)) {
+      throw new Error('このブラウザーは画面スリープ防止に対応していません。');
     }
-  } catch (err) {
-    console.error(`${err.name}, ${err.message}`);
-    updateWakeLockIndicator(false);
+
+    const lock = await navigator.wakeLock.request('screen');
+    wakeLock = lock;
+    signageActive = true;
+    lock.addEventListener('release', handleWakeLockRelease, { once: true });
+    document.getElementById('homeScreen').classList.add('hidden');
+    document.getElementById('signageScreen').classList.remove('hidden');
+
+    if (lock.released) handleWakeLockRelease();
+  } catch (error) {
+    console.error('Wake Lock request failed:', error);
+    setStatus(
+      status,
+      '画面スリープ防止を開始できませんでした。画面を表示した状態で再度お試しください。',
+      true,
+    );
+  } finally {
+    startButton.disabled = false;
   }
 }
 
-// インジケーターの表示を切り替える関数
-function updateWakeLockIndicator(isActive) {
-  const indicator = document.getElementById('wakeLockIndicator');
-  if (!indicator) return;
+function handleWakeLockRelease() {
+  wakeLock = null;
 
-  if (isActive) {
-    indicator.classList.add('active');
-  } else {
-    indicator.classList.remove('active');
+  if (!signageActive) return;
+
+  signageActive = false;
+  document.getElementById('signageScreen').classList.add('hidden');
+  document.getElementById('homeScreen').classList.remove('hidden');
+  setStatus(
+    document.getElementById('homeStatus'),
+    '画面スリープ防止が解除されたため、トップ画面に戻りました。',
+    true,
+  );
+}
+
+async function returnToHome() {
+  signageActive = false;
+  document.getElementById('signageScreen').classList.add('hidden');
+  document.getElementById('homeScreen').classList.remove('hidden');
+
+  const lock = wakeLock;
+  wakeLock = null;
+  if (lock && !lock.released) {
+    try {
+      await lock.release();
+    } catch (error) {
+      console.error('Wake Lock release failed:', error);
+      setStatus(
+        document.getElementById('homeStatus'),
+        'トップ画面に戻りましたが、画面スリープ防止を解除できませんでした。',
+        true,
+      );
+    }
   }
+}
+
+function startMascotPressTimer() {
+  clearMascotPressTimer();
+  mascotPressTimer = setTimeout(() => {
+    mascotPressTimer = null;
+    returnToHome();
+  }, 700);
+}
+
+function clearMascotPressTimer() {
+  if (mascotPressTimer === null) return;
+
+  clearTimeout(mascotPressTimer);
+  mascotPressTimer = null;
 }
 
 window.addEventListener('DOMContentLoaded', init);

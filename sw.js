@@ -1,18 +1,16 @@
-const VERSION = '0.0.14'; // 毎回更新
+const VERSION = '0.0.18'; // 毎回更新
 const STATIC_CACHE_KEY = 'static-' + VERSION;
 
-// キャッシュするファイルのリスト
-// Vercel上のルートからの絶対パスで記述します
 const STATIC_FILES = [
   '/',
   '/index.html',
-  '/style.css',
+  '/statics/style.css',
+  '/statics/script.js',
   '/manifest.json',
+  '/favicon.ico',
   '/statics/signage-192.png',
   '/statics/signage-512.png',
   '/statics/netzyou_transparent.png',
-  // 外部フォント（これらは crossorigin なので addAll で取得可能）
-  'https://fonts.googleapis.com/css2?family=M+PLUS+Rounded+1c:wght@400;500;700&family=Noto+Sans+JP:wght@400;500;700&family=Fira+Sans:ital,wght@1,500&display=swap',
 ];
 
 // インストール：ファイルを一括でキャッシュ
@@ -43,6 +41,13 @@ self.addEventListener('activate', (event) => {
 // フェッチ：キャッシュがあれば返し、なければネットワークから取得してキャッシュに追加
 self.addEventListener('fetch', (event) => {
   if (event.request.method !== 'GET') return;
+  const requestUrl = new URL(event.request.url);
+  if (
+    requestUrl.origin !== self.location.origin ||
+    requestUrl.pathname === '/api/settings'
+  ) {
+    return;
+  }
 
   event.respondWith(
     caches.match(event.request).then((response) => {
