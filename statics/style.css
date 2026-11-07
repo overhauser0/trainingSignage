@@ -335,7 +335,7 @@ body {
 }
 
 .time_wrap {
-  font-size: clamp(2.2rem, 6vw, 6rem); /*var(--font-exlg);*/
+  font-size: clamp(2.2rem, 12vh, 8rem); /*var(--font-exlg);*/
   width: 100%;
   height: 100%;
   display: flex;
