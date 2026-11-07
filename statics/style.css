@@ -106,7 +106,7 @@ body {
   background-color: var(--background);
   overflow: hidden;
   display: grid;
-  grid-template-rows: clamp(6rem, 15vh, 10rem) minmax(0, 1fr);
+  grid-template-rows: clamp(6rem, 18vh, 10rem) minmax(0, 1fr);
   grid-template-columns: var(--timeline-column) minmax(0, 1fr) var(
       --clock-column
     );
@@ -335,7 +335,7 @@ body {
 }
 
 .time_wrap {
-  font-size: clamp(2.2rem, 6vw, 5rem); /*var(--font-exlg);*/
+  font-size: clamp(2.2rem, 6vw, 6rem); /*var(--font-exlg);*/
   width: 100%;
   height: 100%;
   display: flex;
@@ -434,7 +434,7 @@ body {
 }
 
 .today_wrap {
-  font-size: clamp(1rem, 2.4vw, 2rem);
+  font-size: clamp(1rem, 2.8vw, 3rem);
   color: #111;
   display: flex;
   align-items: baseline;

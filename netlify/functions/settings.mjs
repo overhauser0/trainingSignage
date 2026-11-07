@@ -3,7 +3,7 @@ import { getStore } from '@netlify/blobs';
 
 const STORE = getStore('training-signage-settings');
 const KEY = 'countdowns';
-const ADMIN_PASSWORD = '1TO1netz';
+const ADMIN_PASSWORD = 'netz';
 
 function jsonResponse(data, status = 200) {
   return new Response(JSON.stringify(data), {
