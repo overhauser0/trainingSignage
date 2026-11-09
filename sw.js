@@ -1,4 +1,4 @@
-const VERSION = '0.1.2'; // 毎回更新
+const VERSION = '0.1.4'; // 毎回更新
 const STATIC_CACHE_KEY = 'static-' + VERSION;
 
 const STATIC_FILES = [

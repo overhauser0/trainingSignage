@@ -168,6 +168,14 @@ body {
   font-size: clamp(1rem, 2vw, 1.25rem);
 }
 
+.home-auto-shutdown-note {
+  max-width: 38rem;
+  margin: -1rem auto 1.5rem;
+  color: #526457;
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
 .home-actions,
 .settings-actions {
   display: flex;
@@ -262,12 +270,42 @@ body {
   margin: 1rem 0;
 }
 
+.settings-profiles {
+  display: grid;
+  grid-template-columns: 8rem minmax(0, 1fr);
+  gap: 0.6rem 0.75rem;
+  align-items: center;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid #d8e2d9;
+}
+
+.settings-profiles > label {
+  font-weight: 700;
+}
+
+.settings-profile-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.settings-profile-controls select {
+  flex: 1 1 10rem;
+}
+
+.settings-profile-controls .secondary-button {
+  min-height: 2.75rem;
+  padding: 0.5rem 0.9rem;
+  font-size: 0.95rem;
+}
+
 .settings-event label {
   grid-row: span 2;
   font-weight: 700;
 }
 
-.settings-panel input {
+.settings-panel input,
+.settings-panel select {
   min-width: 0;
   min-height: 2.75rem;
   padding: 0.5rem 0.7rem;
@@ -279,6 +317,36 @@ body {
 
 .settings-actions {
   margin-top: 1.25rem;
+}
+
+.settings-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid #c8d6ca;
+  border-radius: 0.75rem;
+  background: #fff;
+  color: #285d3b;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.settings-toggle input {
+  flex: 0 0 auto;
+  width: 1.25rem;
+  min-height: 1.25rem;
+  margin: 0.2rem 0 0;
+  accent-color: #368b59;
+}
+
+.settings-toggle small {
+  display: block;
+  margin-top: 0.25rem;
+  color: #59665b;
+  font-size: 0.85rem;
+  font-weight: 400;
+  line-height: 1.5;
 }
 
 .body_today {
@@ -862,8 +930,21 @@ body {
 }
 
 .countdown-layout .body_today {
-  justify-content: flex-start;
+  justify-content: space-between;
   padding-left: clamp(1rem, 3vw, 3rem);
+}
+
+.countdown-profile-name {
+  display: none;
+}
+
+.countdown-layout .countdown-profile-name {
+  display: block;
+  padding: 0 clamp(1rem, 3vw, 3rem);
+  color: #285d3b;
+  font-size: clamp(1.25rem, 3vw, 2.5rem);
+  font-weight: 700;
+  text-align: right;
 }
 
 .countdown-layout .body_time {

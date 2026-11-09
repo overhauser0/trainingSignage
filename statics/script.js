@@ -15,9 +15,18 @@ const TIMELIST = [
 ];
 
 const SETTINGS_URL = '/api/settings';
+const AUTO_SHUTDOWN_STORAGE_KEY = 'training-signage-auto-shutdown';
 let countdownEvents = [];
+let countdownProfiles = [];
+let activeProfileId = '';
+let editingProfiles = [];
+let editingProfileId = '';
 let wakeLock = null;
 let signageActive = false;
+let autoShutdownEnabled = true;
+let autoShutdownDeadline = null;
+let autoShutdownTimer = null;
+let autoShutdownPreferenceLoadError = false;
 let mascotPressTimer = null;
 let settingsPassword = '';
 
@@ -38,7 +47,9 @@ function init() {
     returnToHome();
   });
   mascot.addEventListener('contextmenu', (event) => event.preventDefault());
-  document.getElementById('openSettings').addEventListener('click', openSettings);
+  document
+    .getElementById('openSettings')
+    .addEventListener('click', openSettings);
   document
     .getElementById('settingsAuthForm')
     .addEventListener('submit', authorizeSettings);
@@ -51,6 +62,21 @@ function init() {
   document
     .getElementById('settingsForm')
     .addEventListener('submit', saveSettings);
+  document
+    .getElementById('profileSelect')
+    .addEventListener('change', selectProfile);
+  document.getElementById('addProfile').addEventListener('click', addProfile);
+  document
+    .getElementById('deleteProfile')
+    .addEventListener('click', deleteProfile);
+  document
+    .getElementById('nightlyShutdownEnabled')
+    .addEventListener('change', updateAutoShutdownPreference);
+  window.addEventListener('storage', handleAutoShutdownStorageChange);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) checkAutoShutdown(new Date());
+  });
+  loadAutoShutdownPreference();
   renderList();
   updateThemeColors();
   refreshTime();
@@ -90,6 +116,7 @@ function refreshTime() {
 
   updateCountdowns();
   updateBalloonComment(currentRestTime);
+  checkAutoShutdown(now);
 }
 
 function renderCountdowns() {
@@ -97,7 +124,10 @@ function renderCountdowns() {
   container.replaceChildren();
   document
     .getElementById('signageScreen')
-    .style.setProperty('--countdown-count', Math.max(countdownEvents.length, 1));
+    .style.setProperty(
+      '--countdown-count',
+      Math.max(countdownEvents.length, 1),
+    );
 
   if (countdownEvents.length === 0) {
     const emptyMessage = document.createElement('p');
@@ -141,15 +171,20 @@ async function loadSettings() {
 
   try {
     const response = await fetch(SETTINGS_URL, { cache: 'no-store' });
-    if (!response.ok) throw new Error(`設定の読み込みに失敗しました (${response.status})`);
+    if (!response.ok)
+      throw new Error(`設定の読み込みに失敗しました (${response.status})`);
     const data = await response.json();
-    countdownEvents = normalizeEvents(data.events);
+    applySettingsData(data);
     renderCountdowns();
     populateSettingsForm();
     setStatus(status, '設定を読み込みました。', false);
   } catch (error) {
     console.error('Settings load failed:', error);
-    setStatus(status, '設定を読み込めません。Netlifyへの接続を確認してください。', true);
+    setStatus(
+      status,
+      '設定を読み込めません。Netlifyへの接続を確認してください。',
+      true,
+    );
   }
 }
 
@@ -169,19 +204,241 @@ function normalizeEvents(events) {
     .map((event) => ({ name: event.name.trim(), dateTime: event.dateTime }));
 }
 
+function applySettingsData(data) {
+  if (Array.isArray(data.profiles) && data.profiles.length > 0) {
+    countdownProfiles = data.profiles
+      .filter(
+        (profile) =>
+          profile &&
+          typeof profile.id === 'string' &&
+          typeof profile.name === 'string',
+      )
+      .map((profile) => ({
+        id: profile.id,
+        name: profile.name.trim(),
+        events: normalizeEvents(profile.events),
+      }));
+    activeProfileId = data.activeProfileId;
+  } else {
+    countdownProfiles = [
+      {
+        id: 'default',
+        name: '標準',
+        events: normalizeEvents(data.events),
+      },
+    ];
+    activeProfileId = 'default';
+  }
+
+  if (!countdownProfiles.length) {
+    countdownProfiles = [{ id: 'default', name: '標準', events: [] }];
+  }
+  if (!countdownProfiles.some((profile) => profile.id === activeProfileId)) {
+    activeProfileId = countdownProfiles[0].id;
+  }
+  countdownEvents =
+    countdownProfiles.find((profile) => profile.id === activeProfileId)
+      ?.events ?? [];
+  beginSettingsEdit();
+}
+
+function beginSettingsEdit() {
+  editingProfiles = countdownProfiles.map((profile) => ({
+    ...profile,
+    events: profile.events.map((item) => ({ ...item })),
+  }));
+  editingProfileId = activeProfileId;
+}
+
 function populateSettingsForm() {
+  const profileSelect = document.getElementById('profileSelect');
+  profileSelect.replaceChildren();
+  editingProfiles.forEach((profile) => {
+    const option = document.createElement('option');
+    option.value = profile.id;
+    option.innerText = profile.name || '名称未設定';
+    profileSelect.appendChild(option);
+  });
+  profileSelect.value = editingProfileId;
+  document.getElementById('deleteProfile').disabled =
+    editingProfiles.length <= 1;
+  document.getElementById('profileName').value =
+    editingProfiles.find((profile) => profile.id === editingProfileId)?.name ??
+    '';
   for (let index = 0; index < 3; index += 1) {
-    const event = countdownEvents[index];
+    const event = editingProfiles.find(
+      (profile) => profile.id === editingProfileId,
+    )?.events[index];
     document.getElementById(`eventName${index + 1}`).value = event?.name ?? '';
     document.getElementById(`eventDate${index + 1}`).value =
       event?.dateTime ?? '';
   }
 }
 
+function captureCurrentProfile() {
+  const profile = editingProfiles.find((item) => item.id === editingProfileId);
+  if (!profile) return;
+
+  profile.name = document.getElementById('profileName').value.trim();
+  profile.events = [];
+  for (let index = 1; index <= 3; index += 1) {
+    const name = document.getElementById(`eventName${index}`).value.trim();
+    const dateTime = document.getElementById(`eventDate${index}`).value;
+    if (name || dateTime) profile.events.push({ name, dateTime });
+  }
+}
+
+function selectProfile(event) {
+  captureCurrentProfile();
+  editingProfileId = event.target.value;
+  populateSettingsForm();
+  if (autoShutdownPreferenceLoadError) {
+    setStatus(
+      document.getElementById('settingsStatus'),
+      'この端末の自動停止設定を読み込めませんでした。ブラウザーの保存領域を確認してください。',
+      true,
+    );
+  } else {
+    document.getElementById('settingsStatus').innerText = '';
+  }
+}
+
+function addProfile() {
+  captureCurrentProfile();
+  const status = document.getElementById('settingsStatus');
+  if (editingProfiles.length >= 20) {
+    setStatus(status, 'プロファイルは20件まで登録できます。', true);
+    return;
+  }
+
+  const profile = {
+    id: crypto.randomUUID(),
+    name: '新しい地区',
+    events: [],
+  };
+  editingProfiles.push(profile);
+  editingProfileId = profile.id;
+  populateSettingsForm();
+  document.getElementById('profileName').focus();
+  setStatus(status, 'プロファイルを追加しました。保存してください。', false);
+}
+
+function deleteProfile() {
+  if (editingProfiles.length <= 1) return;
+  const profile = editingProfiles.find((item) => item.id === editingProfileId);
+  if (!profile || !window.confirm(`「${profile.name}」を削除しますか？`)) {
+    return;
+  }
+
+  editingProfiles = editingProfiles.filter(
+    (item) => item.id !== editingProfileId,
+  );
+  editingProfileId = editingProfiles[0].id;
+  populateSettingsForm();
+  setStatus(
+    document.getElementById('settingsStatus'),
+    'プロファイルを削除しました。保存してください。',
+    false,
+  );
+}
+
 async function openSettings() {
   closeSettingsAuth();
+  document.getElementById('nightlyShutdownEnabled').checked =
+    autoShutdownEnabled;
+  if (autoShutdownPreferenceLoadError) {
+    setStatus(
+      document.getElementById('settingsStatus'),
+      'この端末の自動停止設定を読み込めませんでした。ブラウザーの保存領域を確認してください。',
+      true,
+    );
+  }
   document.getElementById('settingsAuthPanel').classList.remove('hidden');
   document.getElementById('settingsAuthPassword').focus();
+}
+
+function loadAutoShutdownPreference() {
+  try {
+    autoShutdownEnabled =
+      localStorage.getItem(AUTO_SHUTDOWN_STORAGE_KEY) !== 'false';
+  } catch (error) {
+    console.error('Auto-shutdown preference load failed:', error);
+    autoShutdownEnabled = true;
+    autoShutdownPreferenceLoadError = true;
+  }
+}
+
+function updateAutoShutdownPreference(event) {
+  const enabled = event.target.checked;
+  try {
+    localStorage.setItem(AUTO_SHUTDOWN_STORAGE_KEY, String(enabled));
+  } catch (error) {
+    console.error('Auto-shutdown preference save failed:', error);
+    event.target.checked = autoShutdownEnabled;
+    setStatus(
+      document.getElementById('settingsStatus'),
+      'この端末に設定を保存できませんでした。ブラウザーの保存領域を確認してください。',
+      true,
+    );
+    return;
+  }
+
+  autoShutdownEnabled = enabled;
+  autoShutdownPreferenceLoadError = false;
+  setStatus(
+    document.getElementById('settingsStatus'),
+    enabled
+      ? '23:30の自動停止をONにしました（この端末に保存）。'
+      : '23:30の自動停止をOFFにしました（この端末に保存）。',
+    false,
+  );
+}
+
+function handleAutoShutdownStorageChange(event) {
+  if (event.key !== AUTO_SHUTDOWN_STORAGE_KEY) return;
+  autoShutdownEnabled = event.newValue !== 'false';
+  const toggle = document.getElementById('nightlyShutdownEnabled');
+  if (toggle) toggle.checked = autoShutdownEnabled;
+  if (autoShutdownEnabled) {
+    scheduleAutoShutdown(new Date());
+  } else {
+    clearAutoShutdownTimer();
+  }
+}
+
+function clearAutoShutdownTimer() {
+  if (autoShutdownTimer !== null) {
+    clearTimeout(autoShutdownTimer);
+    autoShutdownTimer = null;
+  }
+  autoShutdownDeadline = null;
+}
+
+function scheduleAutoShutdown(now) {
+  clearAutoShutdownTimer();
+  if (!autoShutdownEnabled || !signageActive) return;
+
+  const deadline = new Date(now);
+  deadline.setHours(23, 30, 0, 0);
+  autoShutdownDeadline = deadline;
+  if (deadline <= now) {
+    checkAutoShutdown(now);
+    return;
+  }
+
+  autoShutdownTimer = setTimeout(
+    () => checkAutoShutdown(new Date()),
+    deadline.getTime() - now.getTime(),
+  );
+}
+
+function checkAutoShutdown(now) {
+  if (!autoShutdownEnabled || !signageActive || !autoShutdownDeadline) return;
+  if (now < autoShutdownDeadline) return;
+
+  returnToHome(
+    '23:30を過ぎたためトップ画面に戻りました。画面は端末のスリープ設定に従って消灯します。',
+  );
 }
 
 async function authorizeSettings(event) {
@@ -212,10 +469,11 @@ async function authorizeSettings(event) {
     settingsPassword = password;
     passwordInput.value = '';
     document.getElementById('settingsAuthPanel').classList.add('hidden');
+    beginSettingsEdit();
     populateSettingsForm();
     document.getElementById('settingsStatus').innerText = '';
     document.getElementById('settingsPanel').classList.remove('hidden');
-    document.getElementById('eventName1').focus();
+    document.getElementById('profileName').focus();
   } catch (error) {
     console.error('Settings authorization failed:', error);
     setStatus(
@@ -242,22 +500,47 @@ function closeSettings() {
 async function saveSettings(event) {
   event.preventDefault();
   const status = document.getElementById('settingsStatus');
-  const events = [];
+  captureCurrentProfile();
+  if (
+    !editingProfiles.length ||
+    !editingProfiles.some((profile) => profile.id === editingProfileId)
+  ) {
+    setStatus(status, '保存するプロファイルを選択してください。', true);
+    return;
+  }
 
-  for (let index = 1; index <= 3; index += 1) {
-    const name = document.getElementById(`eventName${index}`).value.trim();
-    const dateTime = document.getElementById(`eventDate${index}`).value;
-
-    if (!name && !dateTime) continue;
-    if (!name || !dateTime) {
-      setStatus(status, `テスト${index}の名前と日程を両方入力してください。`, true);
+  const profiles = [];
+  for (const profile of editingProfiles) {
+    const name = profile.name.trim();
+    if (!name || name.length > 80) {
+      setStatus(
+        status,
+        'すべてのプロファイル名を1〜80文字で入力してください。',
+        true,
+      );
       return;
     }
-    events.push({ name, dateTime });
+
+    const events = [];
+    for (const item of profile.events) {
+      if (!item.name && !item.dateTime) continue;
+      if (!item.name || !item.dateTime) {
+        setStatus(
+          status,
+          `「${name}」のテスト名と日程を両方入力してください。`,
+          true,
+        );
+        return;
+      }
+      events.push(item);
+    }
+    profiles.push({ id: profile.id, name, events });
   }
 
   const password = settingsPassword;
-  const saveButton = document.querySelector('#settingsForm button[type="submit"]');
+  const saveButton = document.querySelector(
+    '#settingsForm button[type="submit"]',
+  );
   saveButton.disabled = true;
   setStatus(status, '保存しています…', false);
 
@@ -268,7 +551,10 @@ async function saveSettings(event) {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${password}`,
       },
-      body: JSON.stringify({ events }),
+      body: JSON.stringify({
+        profiles,
+        activeProfileId: editingProfileId,
+      }),
     });
 
     if (response.status === 401) {
@@ -276,14 +562,21 @@ async function saveSettings(event) {
     }
     if (!response.ok) {
       const result = await response.json().catch(() => ({}));
-      throw new Error(result.error || `保存に失敗しました (${response.status})`);
+      throw new Error(
+        result.error || `保存に失敗しました (${response.status})`,
+      );
     }
 
     const result = await response.json();
-    countdownEvents = normalizeEvents(result.events);
+    applySettingsData(result);
     renderCountdowns();
+    populateSettingsForm();
     closeSettings();
-    setStatus(document.getElementById('homeStatus'), '設定を保存しました。', false);
+    setStatus(
+      document.getElementById('homeStatus'),
+      '設定を保存しました。',
+      false,
+    );
   } catch (error) {
     console.error('Settings save failed:', error);
     setStatus(status, error.message || '設定を保存できませんでした。', true);
@@ -340,7 +633,13 @@ function updateCountdowns() {
 
   countdownEvents.forEach(({ dateTime }, index) => {
     const targetDate = new Date(dateTime);
-    const diffDays = Math.floor((targetDate - now) / (1000 * 60 * 60 * 24));
+    const targetDay = Date.UTC(
+      targetDate.getFullYear(),
+      targetDate.getMonth(),
+      targetDate.getDate(),
+    );
+    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
+    const diffDays = (targetDay - today) / (1000 * 60 * 60 * 24);
     const item = document.getElementById(`countdown-item-${index}`);
     const number = document.getElementById(`countdown-${index}`);
     if (!item || !number) return;
@@ -419,6 +718,20 @@ async function startSignage(layout = 'timetable') {
   startButton.disabled = true;
 
   try {
+    const now = new Date();
+    if (
+      autoShutdownEnabled &&
+      now.getHours() === 23 &&
+      now.getMinutes() >= 30
+    ) {
+      setStatus(
+        status,
+        '23:30以降は自動停止が有効なため、サイネージを開始できません。',
+        false,
+      );
+      return;
+    }
+
     if (!('wakeLock' in navigator)) {
       throw new Error('このブラウザーは画面スリープ防止に対応していません。');
     }
@@ -432,6 +745,7 @@ async function startSignage(layout = 'timetable') {
     signageScreen.classList.toggle('countdown-layout', layout === 'countdown');
     signageScreen.classList.remove('hidden');
     updateCountdowns();
+    scheduleAutoShutdown(new Date());
 
     if (lock.released) handleWakeLockRelease();
   } catch (error) {
@@ -448,6 +762,7 @@ async function startSignage(layout = 'timetable') {
 
 function handleWakeLockRelease() {
   wakeLock = null;
+  clearAutoShutdownTimer();
 
   if (!signageActive) return;
 
@@ -463,12 +778,16 @@ function handleWakeLockRelease() {
   );
 }
 
-async function returnToHome() {
+async function returnToHome(statusMessage = '') {
   signageActive = false;
+  clearAutoShutdownTimer();
   const signageScreen = document.getElementById('signageScreen');
   signageScreen.classList.add('hidden');
   signageScreen.classList.remove('countdown-layout');
   document.getElementById('homeScreen').classList.remove('hidden');
+  if (statusMessage) {
+    setStatus(document.getElementById('homeStatus'), statusMessage, false);
+  }
 
   const lock = wakeLock;
   wakeLock = null;

@@ -68,10 +68,80 @@ function validateEvents(value) {
   return { events };
 }
 
+function validateProfiles(value, activeProfileId) {
+  if (!Array.isArray(value) || value.length < 1 || value.length > 20) {
+    return { error: 'プロファイルは1〜20件で設定してください。' };
+  }
+
+  const profiles = [];
+  const ids = new Set();
+  for (const profile of value) {
+    if (
+      !profile ||
+      typeof profile.id !== 'string' ||
+      !/^[a-zA-Z0-9_-]{1,64}$/.test(profile.id) ||
+      ids.has(profile.id) ||
+      typeof profile.name !== 'string'
+    ) {
+      return { error: 'プロファイルの内容を確認してください。' };
+    }
+
+    const id = profile.id;
+    const name = profile.name.trim();
+    if (!name || name.length > 80) {
+      return { error: 'プロファイル名は1〜80文字で入力してください。' };
+    }
+
+    const validation = validateEvents(profile.events);
+    if (validation.error) {
+      return { error: `「${name}」の${validation.error}` };
+    }
+    ids.add(id);
+    profiles.push({ id, name, events: validation.events });
+  }
+
+  if (typeof activeProfileId !== 'string' || !ids.has(activeProfileId)) {
+    return { error: '選択中のプロファイルを確認してください。' };
+  }
+  return { profiles, activeProfileId };
+}
+
+function defaultSettings(events = []) {
+  return {
+    profiles: [{ id: 'default', name: '標準', events }],
+    activeProfileId: 'default',
+  };
+}
+
 export default async (request) => {
   if (request.method === 'GET') {
-    const events = (await STORE.get(KEY, { type: 'json' })) ?? [];
-    return jsonResponse({ events });
+    const stored = await STORE.get(KEY, { type: 'json' });
+    if (stored === null || stored === undefined) {
+      return jsonResponse(defaultSettings());
+    }
+
+    if (Array.isArray(stored)) {
+      const validation = validateEvents(stored);
+      if (validation.error) {
+        return jsonResponse(
+          { error: '保存されている設定が正しくありません。' },
+          500,
+        );
+      }
+      return jsonResponse(defaultSettings(validation.events));
+    }
+
+    const validation = validateProfiles(
+      stored?.profiles,
+      stored?.activeProfileId,
+    );
+    if (validation.error) {
+      return jsonResponse(
+        { error: '保存されている設定が正しくありません。' },
+        500,
+      );
+    }
+    return jsonResponse(validation);
   }
 
   if (request.method === 'POST') {
@@ -94,7 +164,7 @@ export default async (request) => {
   }
 
   const body = await request.text();
-  if (Buffer.byteLength(body) > 8192) {
+  if (Buffer.byteLength(body) > 65536) {
     return jsonResponse({ error: '設定データが大きすぎます。' }, 413);
   }
 
@@ -105,13 +175,13 @@ export default async (request) => {
     return jsonResponse({ error: '設定データの形式が正しくありません。' }, 400);
   }
 
-  const validation = validateEvents(data?.events);
+  const validation = validateProfiles(data?.profiles, data?.activeProfileId);
   if (validation.error) {
     return jsonResponse({ error: validation.error }, 400);
   }
 
-  await STORE.setJSON(KEY, validation.events);
-  return jsonResponse({ events: validation.events });
+  await STORE.setJSON(KEY, validation);
+  return jsonResponse(validation);
 };
 
 export const config = {

@@ -29,6 +29,10 @@
         <p class="home-description">
           時間割レイアウトまたはカウントダウンレイアウトを表示します。
         </p>
+        <p class="home-auto-shutdown-note">
+          自動停止がONの場合、毎日23:30にトップ画面へ戻り、画面スリープ防止を解除します。
+          画面は端末のスリープ設定に従って消灯します。
+        </p>
         <div class="home-actions">
           <button id="startSignage" class="primary-button" type="button">
             時間割レイアウト
@@ -89,8 +93,46 @@
           aria-labelledby="settingsTitle"
         >
           <h2 id="settingsTitle">カウントダウン設定</h2>
-          <p>テスト名と日程を入力してください。空欄の項目は表示されません。</p>
+          <p>
+            地区プロファイルごとにテスト名と日程を登録できます。選択中の地区は保存すると表示に反映されます。空欄の項目は表示されません。
+          </p>
           <form id="settingsForm">
+            <label class="settings-toggle" for="nightlyShutdownEnabled">
+              <input id="nightlyShutdownEnabled" type="checkbox" />
+              <span>
+                23:30に自動停止する（この端末のみ）
+                <small>
+                  ONにするとトップ画面へ戻り、Wake
+                  Lockを解除します。消灯タイミングは端末のスリープ設定に従います。
+                </small>
+              </span>
+            </label>
+            <div class="settings-profiles">
+              <label for="profileSelect">地区プロファイル</label>
+              <div class="settings-profile-controls">
+                <select
+                  id="profileSelect"
+                  aria-label="地区プロファイル"
+                ></select>
+                <button id="addProfile" class="secondary-button" type="button">
+                  追加
+                </button>
+                <button
+                  id="deleteProfile"
+                  class="secondary-button"
+                  type="button"
+                >
+                  削除
+                </button>
+              </div>
+              <label for="profileName">プロファイル名</label>
+              <input
+                id="profileName"
+                maxlength="80"
+                placeholder="例：東京地区"
+                required
+              />
+            </div>
             <div class="settings-event">
               <label for="eventName1">テスト 1</label>
               <input
