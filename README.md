@@ -12,6 +12,10 @@ the password, which is held in memory only while the settings form is open.
 Anyone with access to the source repository can read this fixed password. Use
 the site over HTTPS.
 
+The top screen offers both the timetable layout and a countdown-focused
+layout. The countdown layout shows the configured events as equal-width
+columns, with the current date and time in the header.
+
 To return from the signage to the top screen, long-press or double-tap the
 character. The top screen is also shown automatically if the screen Wake Lock
 is released.

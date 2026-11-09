@@ -25,6 +25,9 @@ function init() {
   document
     .getElementById('startSignage')
     .addEventListener('click', startSignage);
+  document
+    .getElementById('startCountdownSignage')
+    .addEventListener('click', () => startSignage('countdown'));
   const mascot = document.querySelector('.netzyouicon');
   mascot.addEventListener('pointerdown', startMascotPressTimer);
   mascot.addEventListener('pointerup', clearMascotPressTimer);
@@ -92,6 +95,17 @@ function refreshTime() {
 function renderCountdowns() {
   const container = document.querySelector('.body_note');
   container.replaceChildren();
+  document
+    .getElementById('signageScreen')
+    .style.setProperty('--countdown-count', Math.max(countdownEvents.length, 1));
+
+  if (countdownEvents.length === 0) {
+    const emptyMessage = document.createElement('p');
+    emptyMessage.className = 'countdown-empty';
+    emptyMessage.innerText = '設定画面からカウントダウンを登録してください。';
+    container.appendChild(emptyMessage);
+    return;
+  }
 
   countdownEvents.forEach(({ name, dateTime }, index) => {
     const targetDate = new Date(dateTime);
@@ -320,6 +334,9 @@ function updateDateTime(now, currentTime) {
 
 function updateCountdowns() {
   const now = new Date();
+  const countdownLayout = document
+    .getElementById('signageScreen')
+    .classList.contains('countdown-layout');
 
   countdownEvents.forEach(({ dateTime }, index) => {
     const targetDate = new Date(dateTime);
@@ -328,7 +345,7 @@ function updateCountdowns() {
     const number = document.getElementById(`countdown-${index}`);
     if (!item || !number) return;
 
-    item.classList.toggle('unshown', diffDays <= 0);
+    item.classList.toggle('unshown', diffDays <= 0 && !countdownLayout);
     number.innerText = Math.max(diffDays, 0);
   });
 }
@@ -394,8 +411,10 @@ function registSW() {
   }
 }
 
-async function startSignage() {
-  const startButton = document.getElementById('startSignage');
+async function startSignage(layout = 'timetable') {
+  const startButton = document.getElementById(
+    layout === 'countdown' ? 'startCountdownSignage' : 'startSignage',
+  );
   const status = document.getElementById('homeStatus');
   startButton.disabled = true;
 
@@ -409,7 +428,10 @@ async function startSignage() {
     signageActive = true;
     lock.addEventListener('release', handleWakeLockRelease, { once: true });
     document.getElementById('homeScreen').classList.add('hidden');
-    document.getElementById('signageScreen').classList.remove('hidden');
+    const signageScreen = document.getElementById('signageScreen');
+    signageScreen.classList.toggle('countdown-layout', layout === 'countdown');
+    signageScreen.classList.remove('hidden');
+    updateCountdowns();
 
     if (lock.released) handleWakeLockRelease();
   } catch (error) {
@@ -430,7 +452,9 @@ function handleWakeLockRelease() {
   if (!signageActive) return;
 
   signageActive = false;
-  document.getElementById('signageScreen').classList.add('hidden');
+  const signageScreen = document.getElementById('signageScreen');
+  signageScreen.classList.add('hidden');
+  signageScreen.classList.remove('countdown-layout');
   document.getElementById('homeScreen').classList.remove('hidden');
   setStatus(
     document.getElementById('homeStatus'),
@@ -441,7 +465,9 @@ function handleWakeLockRelease() {
 
 async function returnToHome() {
   signageActive = false;
-  document.getElementById('signageScreen').classList.add('hidden');
+  const signageScreen = document.getElementById('signageScreen');
+  signageScreen.classList.add('hidden');
+  signageScreen.classList.remove('countdown-layout');
   document.getElementById('homeScreen').classList.remove('hidden');
 
   const lock = wakeLock;
