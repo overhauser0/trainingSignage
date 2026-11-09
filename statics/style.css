@@ -76,6 +76,8 @@
 
 * {
   box-sizing: border-box;
+  scrollbar-color: #9ab6a0 transparent;
+  scrollbar-width: thin;
   font-family:
     'M PLUS Rounded 1c',
     'Noto Sans JP',
@@ -85,6 +87,24 @@
     'Hiragino Sans',
     Meiryo,
     sans-serif !important;
+}
+
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #9ab6a0;
+}
+
+*::-webkit-scrollbar-button {
+  display: none;
 }
 
 body {
@@ -148,12 +168,48 @@ body {
   text-align: center;
 }
 
+.home-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 1rem;
+}
+
 .home-eyebrow {
-  margin: 0 0 0.75rem;
+  margin: 0;
   color: #54845c;
   font-size: 0.9rem;
   font-weight: 700;
   letter-spacing: 0.25em;
+}
+
+.icon-button {
+  display: grid;
+  width: 3rem;
+  height: 3rem;
+  flex: 0 0 auto;
+  place-items: center;
+  padding: 0;
+  border: 1px solid rgba(75, 120, 84, 0.2);
+  border-radius: 50%;
+  color: #315d3d;
+  background: #e8f1e8;
+  cursor: pointer;
+  transition:
+    transform 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.icon-button:hover {
+  transform: rotate(12deg);
+  background: #dcebdd;
+}
+
+.icon-button:focus-visible,
+.primary-button:focus-visible,
+.secondary-button:focus-visible {
+  outline: 3px solid #2a5caa;
+  outline-offset: 3px;
 }
 
 .home-card h1 {
@@ -182,6 +238,11 @@ body {
   justify-content: center;
   flex-wrap: wrap;
   gap: 1rem;
+}
+
+.home-actions {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .primary-button,
@@ -224,11 +285,36 @@ body {
   color: #b42318;
 }
 
-.settings-panel {
-  margin-top: 2rem;
-  padding: 1.5rem;
+.settings-modal {
+  position: fixed;
+  z-index: 20;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow-y: auto;
+  padding: 1rem;
+  background: rgba(20, 36, 25, 0.48);
+  backdrop-filter: blur(5px);
+  overscroll-behavior: contain;
+}
+
+.settings-modal-content {
+  width: min(100%, 38rem);
+  max-height: calc(100svh - 2rem);
+  overflow-y: auto;
+  border: 1px solid rgba(75, 120, 84, 0.2);
   border-radius: 1.25rem;
-  background: #f5f8f3;
+  background: #fff;
+  box-shadow: 0 1.5rem 4rem rgba(12, 35, 18, 0.3);
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+.settings-panel {
+  margin: 0;
+  padding: 1.5rem;
+  background: #fff;
   text-align: left;
 }
 
@@ -818,12 +904,35 @@ body {
     padding: 1rem;
   }
 
+  .home-card {
+    padding: 1.5rem;
+  }
+
   .settings-event {
     grid-template-columns: 1fr;
   }
 
   .settings-event label {
     grid-row: auto;
+  }
+}
+
+@media (max-width: 560px) {
+  .home-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .settings-modal {
+    align-items: flex-start;
+    padding: 0.5rem;
+  }
+
+  .settings-modal-content {
+    max-height: calc(100svh - 1rem);
+  }
+
+  .settings-panel {
+    padding: 1.25rem;
   }
 }
 

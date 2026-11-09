@@ -27,19 +27,17 @@ function isAuthorized(request) {
   );
 }
 
-function isValidDateTime(value) {
-  const match = /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/.exec(value);
+function isValidDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (!match) return false;
 
-  const [, year, month, day, hour, minute] = match.map(Number);
-  const date = new Date(Date.UTC(year, month - 1, day, hour, minute));
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
   return (
     year >= 2000 &&
     date.getUTCFullYear() === year &&
     date.getUTCMonth() === month - 1 &&
-    date.getUTCDate() === day &&
-    date.getUTCHours() === hour &&
-    date.getUTCMinutes() === minute
+    date.getUTCDate() === day
   );
 }
 
@@ -53,16 +51,16 @@ function validateEvents(value) {
     if (
       !event ||
       typeof event.name !== 'string' ||
-      typeof event.dateTime !== 'string'
+      typeof event.date !== 'string'
     ) {
       return { error: 'テスト名と日程を確認してください。' };
     }
 
     const name = event.name.trim();
-    if (!name || name.length > 80 || !isValidDateTime(event.dateTime)) {
+    if (!name || name.length > 80 || !isValidDate(event.date)) {
       return { error: 'テスト名または日程が正しくありません。' };
     }
-    events.push({ name, dateTime: event.dateTime });
+    events.push({ name, date: event.date });
   }
 
   return { events };
@@ -113,6 +111,20 @@ function defaultSettings(events = []) {
   };
 }
 
+function migrateStoredEvents(events) {
+  if (!Array.isArray(events)) return events;
+
+  return events.map((event) => {
+    if (!event || typeof event !== 'object' || Array.isArray(event)) {
+      return event;
+    }
+
+    if (typeof event.date === 'string') return event;
+    if (typeof event.dateTime !== 'string') return event;
+    return { ...event, date: event.dateTime.slice(0, 10) };
+  });
+}
+
 export default async (request) => {
   if (request.method === 'GET') {
     const stored = await STORE.get(KEY, { type: 'json' });
@@ -121,7 +133,7 @@ export default async (request) => {
     }
 
     if (Array.isArray(stored)) {
-      const validation = validateEvents(stored);
+      const validation = validateEvents(migrateStoredEvents(stored));
       if (validation.error) {
         return jsonResponse(
           { error: '保存されている設定が正しくありません。' },
@@ -131,8 +143,15 @@ export default async (request) => {
       return jsonResponse(defaultSettings(validation.events));
     }
 
+    const storedProfiles = Array.isArray(stored?.profiles)
+      ? stored.profiles.map((profile) =>
+          profile && typeof profile === 'object'
+            ? { ...profile, events: migrateStoredEvents(profile.events) }
+            : profile,
+        )
+      : stored?.profiles;
     const validation = validateProfiles(
-      stored?.profiles,
+      storedProfiles,
       stored?.activeProfileId,
     );
     if (validation.error) {

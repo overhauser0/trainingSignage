@@ -18,14 +18,40 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="./statics/style.css" />
-    <title>時間割サイネージ</title>
+    <title>カウントダウンサイネージ</title>
     <script src="./statics/script.js" defer></script>
   </head>
   <body>
     <main id="homeScreen" class="home-screen">
       <div class="home-card">
-        <p class="home-eyebrow">STUDY SPACE</p>
-        <h1>時間割サイネージ</h1>
+        <div class="home-toolbar">
+          <p class="home-eyebrow">STUDY SPACE</p>
+          <button
+            id="openSettings"
+            class="icon-button"
+            type="button"
+            aria-label="設定"
+            title="設定"
+          >
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <circle cx="12" cy="12" r="3" />
+              <path
+                d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-1.7 2.94-.08-.02a1.7 1.7 0 0 0-1.82.62l-.05.07h-3.4l-.03-.08a1.7 1.7 0 0 0-1.5-1.1 1.7 1.7 0 0 0-1.5 1.1l-.03.08h-3.4l-.05-.07a1.7 1.7 0 0 0-1.82-.62l-.08.02-1.7-2.94.06-.06A1.7 1.7 0 0 0 3.6 15a1.7 1.7 0 0 0-1.45-1.2L2 13.79v-3.4l.15-.02A1.7 1.7 0 0 0 3.6 9a1.7 1.7 0 0 0-.34-1.88L3.2 7.06l1.7-2.94.08.02a1.7 1.7 0 0 0 1.82-.62l.05-.07h3.4l.03.08a1.7 1.7 0 0 0 1.5 1.1 1.7 1.7 0 0 0 1.5-1.1l.03-.08h3.4l.05.07a1.7 1.7 0 0 0 1.82.62l.08-.02 1.7 2.94-.06.06A1.7 1.7 0 0 0 19.4 9a1.7 1.7 0 0 0 1.45 1.2l.15.02v3.4l-.15.02A1.7 1.7 0 0 0 19.4 15Z"
+              />
+            </svg>
+          </button>
+        </div>
+        <h1>教室サイネージ</h1>
         <p class="home-description">
           時間割レイアウトまたはカウントダウンレイアウトを表示します。
         </p>
@@ -39,159 +65,174 @@
           </button>
           <button
             id="startCountdownSignage"
-            class="secondary-button"
+            class="primary-button"
             type="button"
           >
             カウントダウンレイアウト
-          </button>
-          <button id="openSettings" class="secondary-button" type="button">
-            設定
           </button>
         </div>
         <p id="homeStatus" class="home-status" role="status" aria-live="polite">
           設定を読み込んでいます…
         </p>
 
-        <section
-          id="settingsAuthPanel"
-          class="settings-panel settings-auth-panel hidden"
+        <div
+          id="settingsModal"
+          class="settings-modal hidden"
+          role="dialog"
+          aria-modal="true"
           aria-labelledby="settingsAuthTitle"
         >
-          <h2 id="settingsAuthTitle">設定を開く</h2>
-          <form id="settingsAuthForm">
-            <label class="auth-password-label" for="settingsAuthPassword">
-              パスワード
-            </label>
-            <input
-              id="settingsAuthPassword"
-              type="password"
-              autocomplete="current-password"
-              required
-            />
-            <p
-              id="settingsAuthStatus"
-              class="home-status"
-              role="status"
-              aria-live="polite"
-            ></p>
-            <div class="settings-actions">
-              <button class="primary-button" type="submit">確認</button>
-              <button
-                id="cancelSettingsAuth"
-                class="secondary-button"
-                type="button"
-              >
-                キャンセル
-              </button>
-            </div>
-          </form>
-        </section>
+          <div class="settings-modal-content">
+            <section
+              id="settingsAuthPanel"
+              class="settings-panel settings-auth-panel hidden"
+              aria-labelledby="settingsAuthTitle"
+            >
+              <h2 id="settingsAuthTitle">設定を開く</h2>
+              <form id="settingsAuthForm">
+                <label class="auth-password-label" for="settingsAuthPassword">
+                  パスワード
+                </label>
+                <input
+                  id="settingsAuthPassword"
+                  type="password"
+                  autocomplete="current-password"
+                  required
+                />
+                <p
+                  id="settingsAuthStatus"
+                  class="home-status"
+                  role="status"
+                  aria-live="polite"
+                ></p>
+                <div class="settings-actions">
+                  <button class="primary-button" type="submit">確認</button>
+                  <button
+                    id="cancelSettingsAuth"
+                    class="secondary-button"
+                    type="button"
+                  >
+                    キャンセル
+                  </button>
+                </div>
+              </form>
+            </section>
 
-        <section
-          id="settingsPanel"
-          class="settings-panel hidden"
-          aria-labelledby="settingsTitle"
-        >
-          <h2 id="settingsTitle">カウントダウン設定</h2>
-          <p>
-            地区プロファイルごとにテスト名と日程を登録できます。選択中の地区は保存すると表示に反映されます。空欄の項目は表示されません。
-          </p>
-          <form id="settingsForm">
-            <label class="settings-toggle" for="nightlyShutdownEnabled">
-              <input id="nightlyShutdownEnabled" type="checkbox" />
-              <span>
-                23:30に自動停止する（この端末のみ）
-                <small>
-                  ONにするとトップ画面へ戻り、Wake
-                  Lockを解除します。消灯タイミングは端末のスリープ設定に従います。
-                </small>
-              </span>
-            </label>
-            <div class="settings-profiles">
-              <label for="profileSelect">地区プロファイル</label>
-              <div class="settings-profile-controls">
-                <select
-                  id="profileSelect"
-                  aria-label="地区プロファイル"
-                ></select>
-                <button id="addProfile" class="secondary-button" type="button">
-                  追加
-                </button>
-                <button
-                  id="deleteProfile"
-                  class="secondary-button"
-                  type="button"
-                >
-                  削除
-                </button>
-              </div>
-              <label for="profileName">プロファイル名</label>
-              <input
-                id="profileName"
-                maxlength="80"
-                placeholder="例：東京地区"
-                required
-              />
-            </div>
-            <div class="settings-event">
-              <label for="eventName1">テスト 1</label>
-              <input
-                id="eventName1"
-                name="eventName1"
-                maxlength="80"
-                placeholder="例：公立高校入試"
-              />
-              <input
-                id="eventDate1"
-                name="eventDate1"
-                type="datetime-local"
-                aria-label="テスト1の日程"
-              />
-            </div>
-            <div class="settings-event">
-              <label for="eventName2">テスト 2</label>
-              <input
-                id="eventName2"
-                name="eventName2"
-                maxlength="80"
-                placeholder="例：共通テスト"
-              />
-              <input
-                id="eventDate2"
-                name="eventDate2"
-                type="datetime-local"
-                aria-label="テスト2の日程"
-              />
-            </div>
-            <div class="settings-event">
-              <label for="eventName3">テスト 3</label>
-              <input
-                id="eventName3"
-                name="eventName3"
-                maxlength="80"
-                placeholder="任意"
-              />
-              <input
-                id="eventDate3"
-                name="eventDate3"
-                type="datetime-local"
-                aria-label="テスト3の日程"
-              />
-            </div>
-            <div class="settings-actions">
-              <button class="primary-button" type="submit">保存</button>
-              <button id="closeSettings" class="secondary-button" type="button">
-                閉じる
-              </button>
-            </div>
-          </form>
-          <p
-            id="settingsStatus"
-            class="home-status"
-            role="status"
-            aria-live="polite"
-          ></p>
-        </section>
+            <section
+              id="settingsPanel"
+              class="settings-panel hidden"
+              aria-labelledby="settingsTitle"
+            >
+              <h2 id="settingsTitle">カウントダウン設定</h2>
+              <p>
+                地区プロファイルごとにテスト名と日付を登録できます。選択中の地区は保存すると表示に反映されます。空欄の項目は表示されません。
+              </p>
+              <form id="settingsForm">
+                <label class="settings-toggle" for="nightlyShutdownEnabled">
+                  <input id="nightlyShutdownEnabled" type="checkbox" />
+                  <span>
+                    23:30に自動停止する（この端末のみ）
+                    <small>
+                      ONにするとトップ画面へ戻り、Wake
+                      Lockを解除します。消灯タイミングは端末のスリープ設定に従います。
+                    </small>
+                  </span>
+                </label>
+                <div class="settings-profiles">
+                  <label for="profileSelect">地区プロファイル</label>
+                  <div class="settings-profile-controls">
+                    <select
+                      id="profileSelect"
+                      aria-label="地区プロファイル"
+                    ></select>
+                    <button
+                      id="addProfile"
+                      class="secondary-button"
+                      type="button"
+                    >
+                      追加
+                    </button>
+                    <button
+                      id="deleteProfile"
+                      class="secondary-button"
+                      type="button"
+                    >
+                      削除
+                    </button>
+                  </div>
+                  <label for="profileName">プロファイル名</label>
+                  <input
+                    id="profileName"
+                    maxlength="80"
+                    placeholder="例：東京地区"
+                    required
+                  />
+                </div>
+                <div class="settings-event">
+                  <label for="eventName1">テスト 1</label>
+                  <input
+                    id="eventName1"
+                    name="eventName1"
+                    maxlength="80"
+                    placeholder="例：公立高校入試"
+                  />
+                  <input
+                    id="eventDate1"
+                    name="eventDate1"
+                    type="date"
+                    aria-label="テスト1の日付"
+                  />
+                </div>
+                <div class="settings-event">
+                  <label for="eventName2">テスト 2</label>
+                  <input
+                    id="eventName2"
+                    name="eventName2"
+                    maxlength="80"
+                    placeholder="例：共通テスト"
+                  />
+                  <input
+                    id="eventDate2"
+                    name="eventDate2"
+                    type="date"
+                    aria-label="テスト2の日付"
+                  />
+                </div>
+                <div class="settings-event">
+                  <label for="eventName3">テスト 3</label>
+                  <input
+                    id="eventName3"
+                    name="eventName3"
+                    maxlength="80"
+                    placeholder="任意"
+                  />
+                  <input
+                    id="eventDate3"
+                    name="eventDate3"
+                    type="date"
+                    aria-label="テスト3の日付"
+                  />
+                </div>
+                <div class="settings-actions">
+                  <button class="primary-button" type="submit">保存</button>
+                  <button
+                    id="closeSettings"
+                    class="secondary-button"
+                    type="button"
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </form>
+              <p
+                id="settingsStatus"
+                class="home-status"
+                role="status"
+                aria-live="polite"
+              ></p>
+            </section>
+          </div>
+        </div>
       </div>
     </main>
 

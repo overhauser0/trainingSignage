@@ -50,12 +50,17 @@ function init() {
   document
     .getElementById('openSettings')
     .addEventListener('click', openSettings);
+  const settingsModal = document.getElementById('settingsModal');
+  settingsModal.addEventListener('click', (event) => {
+    if (event.target === settingsModal) closeSettingsModal();
+  });
+  settingsModal.addEventListener('keydown', handleSettingsModalKeydown);
   document
     .getElementById('settingsAuthForm')
     .addEventListener('submit', authorizeSettings);
   document
     .getElementById('cancelSettingsAuth')
-    .addEventListener('click', closeSettingsAuth);
+    .addEventListener('click', closeSettingsModal);
   document
     .getElementById('closeSettings')
     .addEventListener('click', closeSettings);
@@ -137,8 +142,7 @@ function renderCountdowns() {
     return;
   }
 
-  countdownEvents.forEach(({ name, dateTime }, index) => {
-    const targetDate = new Date(dateTime);
+  countdownEvents.forEach(({ name }, index) => {
     const item = document.createElement('div');
     item.className = 'countdown_item';
     item.id = `countdown-item-${index}`;
@@ -193,15 +197,37 @@ function normalizeEvents(events) {
 
   return events
     .slice(0, 3)
+    .map((event) => {
+      const date =
+        typeof event?.date === 'string'
+          ? event.date
+          : typeof event?.dateTime === 'string'
+            ? event.dateTime.slice(0, 10)
+            : '';
+      return { event, date };
+    })
     .filter(
-      (event) =>
+      ({ event, date }) =>
         event &&
         typeof event.name === 'string' &&
-        typeof event.dateTime === 'string' &&
         event.name.trim() &&
-        !Number.isNaN(new Date(event.dateTime).getTime()),
+        isValidDate(date),
     )
-    .map((event) => ({ name: event.name.trim(), dateTime: event.dateTime }));
+    .map(({ event, date }) => ({ name: event.name.trim(), date }));
+}
+
+function isValidDate(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
+  if (!match) return false;
+
+  const [, year, month, day] = match.map(Number);
+  const date = new Date(Date.UTC(year, month - 1, day));
+  return (
+    year >= 2000 &&
+    date.getUTCFullYear() === year &&
+    date.getUTCMonth() === month - 1 &&
+    date.getUTCDate() === day
+  );
 }
 
 function applySettingsData(data) {
@@ -271,7 +297,7 @@ function populateSettingsForm() {
     )?.events[index];
     document.getElementById(`eventName${index + 1}`).value = event?.name ?? '';
     document.getElementById(`eventDate${index + 1}`).value =
-      event?.dateTime ?? '';
+      event?.date ?? '';
   }
 }
 
@@ -283,8 +309,8 @@ function captureCurrentProfile() {
   profile.events = [];
   for (let index = 1; index <= 3; index += 1) {
     const name = document.getElementById(`eventName${index}`).value.trim();
-    const dateTime = document.getElementById(`eventDate${index}`).value;
-    if (name || dateTime) profile.events.push({ name, dateTime });
+    const date = document.getElementById(`eventDate${index}`).value;
+    if (name || date) profile.events.push({ name, date });
   }
 }
 
@@ -342,8 +368,12 @@ function deleteProfile() {
   );
 }
 
-async function openSettings() {
+function openSettings() {
   closeSettingsAuth();
+  document.getElementById('settingsPanel').classList.add('hidden');
+  const modal = document.getElementById('settingsModal');
+  modal.setAttribute('aria-labelledby', 'settingsAuthTitle');
+  modal.classList.remove('hidden');
   document.getElementById('nightlyShutdownEnabled').checked =
     autoShutdownEnabled;
   if (autoShutdownPreferenceLoadError) {
@@ -473,6 +503,9 @@ async function authorizeSettings(event) {
     populateSettingsForm();
     document.getElementById('settingsStatus').innerText = '';
     document.getElementById('settingsPanel').classList.remove('hidden');
+    document
+      .getElementById('settingsModal')
+      .setAttribute('aria-labelledby', 'settingsTitle');
     document.getElementById('profileName').focus();
   } catch (error) {
     console.error('Settings authorization failed:', error);
@@ -489,12 +522,48 @@ async function authorizeSettings(event) {
 function closeSettingsAuth() {
   document.getElementById('settingsAuthPanel').classList.add('hidden');
   document.getElementById('settingsAuthPassword').value = '';
-  document.getElementById('settingsAuthStatus').innerText = '';
+  setStatus(document.getElementById('settingsAuthStatus'), '', false);
 }
 
 function closeSettings() {
+  closeSettingsModal();
+}
+
+function closeSettingsModal() {
+  document.getElementById('settingsModal').classList.add('hidden');
+  closeSettingsAuth();
   document.getElementById('settingsPanel').classList.add('hidden');
   settingsPassword = '';
+  document.getElementById('openSettings').focus();
+}
+
+function handleSettingsModalKeydown(event) {
+  const modal = document.getElementById('settingsModal');
+  if (event.key === 'Escape') {
+    closeSettingsModal();
+    return;
+  }
+  if (event.key !== 'Tab') return;
+
+  const focusableElements = Array.from(
+    modal.querySelectorAll(
+      'button:not([disabled]), input:not([disabled]), [href], [tabindex]:not([tabindex="-1"])',
+    ),
+  ).filter((element) => !element.closest('.hidden'));
+  if (focusableElements.length === 0) {
+    event.preventDefault();
+    return;
+  }
+
+  const first = focusableElements[0];
+  const last = focusableElements[focusableElements.length - 1];
+  if (event.shiftKey && document.activeElement === first) {
+    event.preventDefault();
+    last.focus();
+  } else if (!event.shiftKey && document.activeElement === last) {
+    event.preventDefault();
+    first.focus();
+  }
 }
 
 async function saveSettings(event) {
@@ -523,11 +592,11 @@ async function saveSettings(event) {
 
     const events = [];
     for (const item of profile.events) {
-      if (!item.name && !item.dateTime) continue;
-      if (!item.name || !item.dateTime) {
+      if (!item.name && !item.date) continue;
+      if (!item.name || !item.date) {
         setStatus(
           status,
-          `「${name}」のテスト名と日程を両方入力してください。`,
+          `「${name}」のテスト名と日付を両方入力してください。`,
           true,
         );
         return;
@@ -631,15 +700,17 @@ function updateCountdowns() {
     .getElementById('signageScreen')
     .classList.contains('countdown-layout');
 
-  countdownEvents.forEach(({ dateTime }, index) => {
-    const targetDate = new Date(dateTime);
-    const targetDay = Date.UTC(
-      targetDate.getFullYear(),
-      targetDate.getMonth(),
-      targetDate.getDate(),
-    );
-    const today = Date.UTC(now.getFullYear(), now.getMonth(), now.getDate());
-    const diffDays = (targetDay - today) / (1000 * 60 * 60 * 24);
+  const todayDay = Date.UTC(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  ) / (1000 * 60 * 60 * 24);
+
+  countdownEvents.forEach(({ date }, index) => {
+    const [year, month, day] = date.split('-').map(Number);
+    const targetDay =
+      Date.UTC(year, month - 1, day) / (1000 * 60 * 60 * 24);
+    const diffDays = targetDay - todayDay;
     const item = document.getElementById(`countdown-item-${index}`);
     const number = document.getElementById(`countdown-${index}`);
     if (!item || !number) return;
